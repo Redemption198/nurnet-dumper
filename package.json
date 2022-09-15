@@ -1,0 +1,17 @@
+{
+  "name": "nurnet-dumper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Redemption198",
+  "license": "MIT",
+  "dependencies": {
+    "consola": "^2.15.3",
+    "node-fetch": "^3.2.10",
+    "puppeteer": "^17.1.3"
+  }
+}
