@@ -12,11 +12,26 @@ Version 1 scraped one portal page per site with Puppeteer, which took hours.
 vp install
 vp run start
 # or with other paths:
-vpx src/index.ts --base ../nurnet-plus/public/nurnet-data.json --out out
+vpx src/index.ts --base ../nurnet-plus/public --out out
 ```
 
 Nothing is overwritten: the merged data and a report of every change are written to `out/`.
-Review `out/report.md`, then copy `out/nurnet-data.json` into NurNet+.
+Review `out/report.md`, then copy the two data files into NurNet+:
+
+```bash
+cp out/nurnet-index.json out/nurnet-details.json ../nurnet-plus/public/
+```
+
+## Output
+
+The app's data is split so it starts fast:
+
+- `nurnet-index.json` (~170 KB gzipped): one compact row per site with what the list, search and
+  map need (`content_id, category_id, name, comune, localita, regione, lon, lat`). Loaded at startup.
+- `nurnet-details.json` (~950 KB gzipped): photos, description, source, video, status, verified and
+  date by `content_id`. Loaded in the background. Photo URLs are stored relative to `photoBase`.
+
+`--base` reads either this pair or the older single `nurnet-data.json`.
 
 ## How the data is merged
 

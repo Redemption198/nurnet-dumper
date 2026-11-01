@@ -1,10 +1,13 @@
 // NurNet Dumper 2: fetches the NurNet sites and photos from the CRS4 GeoServer (two requests)
-// and merges them into an existing NurNet+ data file. Nothing is overwritten: the result and a
+// and merges them into the existing NurNet+ data. Nothing is overwritten: the result and a
 // report of every change go to the output folder, to review before replacing the app's data.
 //
-//   vpx src/index.ts [--base ../nurnet-plus/public/nurnet-data.json] [--out out]
+// The app's data is split in two: a small index (what the list, search and map need, loaded at
+// startup) and the details (photos, description...: loaded in the background).
+//
+//   vpx src/index.ts [--base ../nurnet-plus/public] [--out out]
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import {
   classifyVideo,
@@ -53,7 +56,9 @@ interface Feature {
 
 const { values: args } = parseArgs({
   options: {
-    base: { type: "string", default: "../nurnet-plus/public/nurnet-data.json" },
+    // The NurNet+ public folder: nurnet-index.json + nurnet-details.json, or the older
+    // single nurnet-data.json
+    base: { type: "string", default: "../nurnet-plus/public" },
     out: { type: "string", default: "out" },
     // Keep sites that are only in the base file (e.g. added by hand) instead of following upstream
     "keep-local": { type: "boolean", default: false },
@@ -83,10 +88,52 @@ const [sites, media] = await Promise.all([
   fetchLayer<{ code: string; url: string }>("nurmedia"),
 ]);
 
-const base = JSON.parse(await readFile(args.base!, "utf8")) as {
-  features: { geometry: Feature["geometry"]; properties: Partial<Properties> }[];
-};
-const ours = new Map(base.features.map((f) => [f.properties.content_id!, f]));
+// Index rows: the fields the list, search and map need, in this order
+const INDEX_FIELDS = [
+  "content_id",
+  "category_id",
+  "name",
+  "comune",
+  "localita",
+  "regione",
+] as const;
+// Photo URLs share this prefix: stored without it, the app adds it back
+const PHOTO_BASE = "https://www.nurnet.net/mediateca/wp-content/uploads/sites/2/";
+
+type BaseFeature = { geometry: Feature["geometry"]; properties: Partial<Properties> };
+
+async function readBase(dir: string): Promise<BaseFeature[]> {
+  const exists = (file: string) =>
+    access(`${dir}/${file}`).then(
+      () => true,
+      () => false,
+    );
+  const readJson = async (file: string) => JSON.parse(await readFile(`${dir}/${file}`, "utf8"));
+
+  if (await exists("nurnet-index.json")) {
+    const index = await readJson("nurnet-index.json");
+    const details = await readJson("nurnet-details.json");
+    return (index.rows as unknown[][]).map((row) => {
+      const properties = Object.fromEntries(INDEX_FIELDS.map((field, i) => [field, row[i]]));
+      const extra = details.sites[properties.content_id as string] ?? {};
+      return {
+        geometry: { type: "Point", coordinates: [row[6], row[7]] as [number, number] },
+        properties: {
+          ...properties,
+          ...extra,
+          photos: (extra.photos ?? []).map((url: string) =>
+            url.startsWith("http") ? url : details.photoBase + url,
+          ),
+        },
+      };
+    });
+  }
+  const single = await readJson("nurnet-data.json");
+  return single.features;
+}
+
+const base = await readBase(args.base!);
+const ours = new Map(base.map((f) => [f.properties.content_id!, f]));
 console.log(`Read ${ours.size} sites from ${args.base}`);
 
 const photosById = new Map<string, string[]>();
@@ -232,9 +279,40 @@ for (const [id, feature] of ours) {
 }
 
 await mkdir(args.out!, { recursive: true });
+
+// Index: one compact row per site, no repeated keys (about a quarter of GeoJSON's size)
+const rows = features.map(({ geometry, properties }) => [
+  ...INDEX_FIELDS.map((field) => properties[field]),
+  Number(geometry.coordinates[0].toFixed(6)),
+  Number(geometry.coordinates[1].toFixed(6)),
+]);
+const generated = new Date().toISOString();
 await writeFile(
-  `${args.out}/nurnet-data.json`,
-  JSON.stringify({ type: "FeatureCollection", features }),
+  `${args.out}/nurnet-index.json`,
+  JSON.stringify({ generated, fields: [...INDEX_FIELDS, "lon", "lat"], rows }),
+);
+
+// Details: everything else, by content_id, leaving out empty values
+const sitesDetails = Object.fromEntries(
+  features.map(({ properties }) => {
+    const { photos, ...rest } = properties;
+    const detail: Record<string, unknown> = Object.fromEntries(
+      Object.entries(rest).filter(
+        ([key, value]) =>
+          !(INDEX_FIELDS as readonly string[]).includes(key) && value !== "" && value !== null,
+      ),
+    );
+    if (photos.length) {
+      detail.photos = photos.map((url) =>
+        url.startsWith(PHOTO_BASE) ? url.slice(PHOTO_BASE.length) : url,
+      );
+    }
+    return [properties.content_id, detail];
+  }),
+);
+await writeFile(
+  `${args.out}/nurnet-details.json`,
+  JSON.stringify({ generated, photoBase: PHOTO_BASE, sites: sitesDetails }),
 );
 
 const section = (title: string, lines: string[]) =>
@@ -268,5 +346,5 @@ ${section("Renamed", report.renamed)}`;
 
 await writeFile(`${args.out}/report.md`, markdown);
 console.log(
-  `Wrote ${features.length} sites to ${args.out}/nurnet-data.json and the report to ${args.out}/report.md`,
+  `Wrote ${features.length} sites to ${args.out}/nurnet-index.json + nurnet-details.json and the report to ${args.out}/report.md`,
 );
