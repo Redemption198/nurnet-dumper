@@ -55,6 +55,8 @@ const { values: args } = parseArgs({
   options: {
     base: { type: "string", default: "../nurnet-plus/public/nurnet-data.json" },
     out: { type: "string", default: "out" },
+    // Keep sites that are only in the base file (e.g. added by hand) instead of following upstream
+    "keep-local": { type: "boolean", default: false },
   },
 });
 
@@ -199,11 +201,14 @@ for (const site of sites) {
   features.push({ type: "Feature", geometry: { type: "Point", coordinates }, properties });
 }
 
-// Sites only in our file (removed upstream, or added by hand) are kept, normalised, and listed
+// Sites only in our file (removed upstream, or added by hand): listed in the report, and
+// dropped to follow upstream unless --keep-local
 const upstreamIds = new Set(sites.map((s) => s.properties.contentid));
 for (const [id, feature] of ours) {
   if (upstreamIds.has(id)) continue;
   const p = feature.properties;
+  report.onlyOurs.push(label(p));
+  if (!args["keep-local"]) continue;
   const video = classifyVideo(p.youtube);
   features.push({
     type: "Feature",
@@ -224,7 +229,6 @@ for (const [id, feature] of ours) {
       photos: p.photos ?? [],
     },
   });
-  report.onlyOurs.push(label(p));
 }
 
 await mkdir(args.out!, { recursive: true });
@@ -245,7 +249,7 @@ Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, nurmedia).
 | Sites before | ${ours.size} |
 | Sites after | ${features.length} |
 | New upstream | ${report.added.length} |
-| Only in our file (kept) | ${report.onlyOurs.length} |
+| Only in our file (${args["keep-local"] ? "kept" : "removed, as upstream"}) | ${report.onlyOurs.length} |
 | Renamed (after normalisation) | ${report.renamed.length} |
 | Category changed | ${report.recategorised.length} |
 | Moved more than 50 m | ${report.moved.length} |
@@ -256,7 +260,7 @@ Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, nurmedia).
 | Sites with photos | ${report.photos.sitesBefore} -> ${report.photos.sitesAfter} (+${report.photos.added} photos) |
 
 ${section("Video field fixes", report.videoFixes)}
-${section("Only in our file (kept, review)", report.onlyOurs)}
+${section(`Only in our file (${args["keep-local"] ? "kept" : "removed, as upstream"})`, report.onlyOurs)}
 ${section("New upstream", report.added)}
 ${section("Category changed", report.recategorised)}
 ${section("Moved more than 50 m", report.moved)}

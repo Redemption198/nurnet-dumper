@@ -23,7 +23,8 @@ Review `out/report.md`, then copy `out/nurnet-data.json` into NurNet+.
 - Name, category, comune, località, region, source and description come from upstream.
 - Status, verified and date are not published upstream any more, so the existing values are kept.
 - Photos: the existing list plus the upstream ones, without duplicates.
-- Sites that exist only in the base file (removed upstream or added by hand) are kept and listed in the report.
+- Sites that exist only in the base file (removed upstream or added by hand) are removed, following
+  upstream, and listed in the report. Pass `--keep-local` to keep them.
 - Text is normalised: whitespace, straight apostrophes, doubled apostrophes (`''e` -> `'e`).
 - The video field only keeps YouTube ids and Facebook video URLs. YouTube URLs become ids, Facebook
   videos found in the source move to the video field, websites move to the source when it is empty,
