@@ -11,10 +11,14 @@ export function normalizeText(value: Text): string {
     .trim();
 }
 
-/** Like normalizeText, but keeps line breaks between paragraphs (for descriptions). */
+/**
+ * Like normalizeText, but keeps paragraphs (for descriptions). Upstream encodes line breaks as
+ * " ; " (a space before a semicolon, which normal punctuation never has): those become paragraphs.
+ */
 export function normalizeParagraphs(value: Text): string {
   return (value ?? "")
     .replace(/\r\n?/g, "\n")
+    .replace(/\s+;(?:\s*;)*\s+/g, "\n\n")
     .split(/\n{2,}/)
     .map((paragraph) => normalizeText(paragraph))
     .filter(Boolean)
