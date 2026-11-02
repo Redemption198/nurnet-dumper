@@ -16,6 +16,7 @@ import {
   normalizeText,
   type VideoResult,
 } from "./normalize.ts";
+import { loadPortalContext, type SiteContext } from "./portal.ts";
 
 const WFS =
   "https://nurnet.crs4.it/geoserver/nurnet/ows?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json&srsName=EPSG:4326";
@@ -51,8 +52,19 @@ interface Properties {
 interface Feature {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
-  properties: Properties;
+  properties: Properties & Partial<SiteContext>;
 }
+
+const CONTEXT_FIELDS = [
+  "elevation",
+  "typology",
+  "period",
+  "lithology",
+  "landUse",
+  "riverDistance",
+  "springDistance",
+  "coastDistance",
+] as const;
 
 const { values: args } = parseArgs({
   options: {
@@ -65,14 +77,28 @@ const { values: args } = parseArgs({
   },
 });
 
-async function fetchLayer<T>(layer: string) {
-  const response = await fetch(`${WFS}&typeNames=nurnet:${layer}`);
-  if (!response.ok) throw new Error(`${layer}: HTTP ${response.status}`);
-  const data = (await response.json()) as {
-    features: { geometry: { coordinates: [number, number] }; properties: T }[];
-  };
-  console.log(`Fetched ${data.features.length} features from nurnet:${layer}`);
-  return data.features;
+// The CRS4 server drops out from time to time: retry a few times before giving up
+async function fetchLayer<T>(layer: string, attempts = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(`${WFS}&typeNames=nurnet:${layer}`, {
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = (await response.json()) as {
+        features: { geometry: { coordinates: [number, number] }; properties: T }[];
+      };
+      console.log(`Fetched ${data.features.length} features from nurnet:${layer}`);
+      return data.features;
+    } catch (error) {
+      if (attempt >= attempts)
+        throw new Error(`nurnet:${layer}: ${String(error)}`, { cause: error });
+      console.warn(
+        `nurnet:${layer} failed (${String(error)}), retrying (${attempt}/${attempts - 1})…`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10_000 * attempt));
+    }
+  }
 }
 
 // Distance in metres between two lon/lat points (equirectangular, fine at this scale)
@@ -83,10 +109,6 @@ function distance([lon1, lat1]: [number, number], [lon2, lat2]: [number, number]
 }
 
 console.log("NurNet Dumper 2");
-const [sites, media] = await Promise.all([
-  fetchLayer<UpstreamSite>("nurdata"),
-  fetchLayer<{ code: string; url: string }>("nurmedia"),
-]);
 
 // Index rows: the fields the list, search and map need, in this order
 const INDEX_FIELDS = [
@@ -100,7 +122,7 @@ const INDEX_FIELDS = [
 // Photo URLs share this prefix: stored without it, the app adds it back
 const PHOTO_BASE = "https://www.nurnet.net/mediateca/wp-content/uploads/sites/2/";
 
-type BaseFeature = { geometry: Feature["geometry"]; properties: Partial<Properties> };
+type BaseFeature = { geometry: Feature["geometry"]; properties: Partial<Feature["properties"]> };
 
 async function readBase(dir: string): Promise<BaseFeature[]> {
   const exists = (file: string) =>
@@ -136,6 +158,44 @@ const base = await readBase(args.base!);
 const ours = new Map(base.map((f) => [f.properties.content_id!, f]));
 console.log(`Read ${ours.size} sites from ${args.base}`);
 
+const [crs4, contextFor] = await Promise.all([
+  Promise.all([
+    fetchLayer<UpstreamSite>("nurdata"),
+    fetchLayer<{ code: string; url: string }>("nurmedia"),
+  ]).catch((error: unknown) => {
+    console.warn(`CRS4 unavailable, keeping the current sites and photos: ${String(error)}`);
+    return null;
+  }),
+  // Optional: without it, each site keeps the context it already had
+  loadPortalContext().catch((error: unknown) => {
+    console.warn(`geo.nurnet.net unavailable, keeping the existing context: ${String(error)}`);
+    return null;
+  }),
+]);
+
+// With CRS4 down, the current data stands in for it, so the other sources can still update
+const sites =
+  crs4?.[0] ??
+  base.map(({ geometry, properties: p }) => ({
+    geometry,
+    properties: {
+      contentid: p.content_id!,
+      category: p.category_id ?? null,
+      nome: p.name ?? null,
+      comune: p.comune ?? null,
+      localita: p.localita ?? null,
+      regione: p.regione ?? null,
+      fonte: p.source ?? null,
+      youtube: p.youtube ?? null,
+      descr_it: p.description ?? null,
+    } satisfies UpstreamSite,
+  }));
+const media =
+  crs4?.[1] ??
+  base.flatMap(({ properties: p }) =>
+    (p.photos ?? []).map((url) => ({ properties: { code: p.content_id!, url } })),
+  );
+
 const photosById = new Map<string, string[]>();
 for (const { properties } of media) {
   const list = photosById.get(properties.code) ?? [];
@@ -151,6 +211,7 @@ const report = {
   moved: [] as string[],
   sourceChanged: 0,
   newDescriptions: 0,
+  context: { matched: 0, kept: 0, none: 0 },
   videoFixes: [] as string[],
   statusFixes: 0,
   photos: { sitesBefore: 0, sitesAfter: 0, added: 0 },
@@ -210,7 +271,7 @@ for (const site of sites) {
   if (photos.length) report.photos.sitesAfter++;
   report.photos.added += photos.length - (previous.photos?.length ?? 0);
 
-  const properties: Properties = {
+  const properties: Feature["properties"] = {
     content_id: id,
     category_id: up.category ?? null,
     name: normalizeText(up.nome),
@@ -227,6 +288,18 @@ for (const site of sites) {
     photos,
   };
   const coordinates = site.geometry.coordinates;
+
+  // Context from geo.nurnet.net, or what the site already had if the portal is unavailable
+  const context = contextFor?.(properties.name, coordinates);
+  if (context) {
+    Object.assign(properties, context);
+    report.context.matched++;
+  } else if (!contextFor && CONTEXT_FIELDS.some((field) => previous[field] != null)) {
+    for (const field of CONTEXT_FIELDS) Object.assign(properties, { [field]: previous[field] });
+    report.context.kept++;
+  } else {
+    report.context.none++;
+  }
 
   if (!existing) {
     report.added.push(label(properties));
@@ -320,7 +393,7 @@ const section = (title: string, lines: string[]) =>
 
 const markdown = `# NurNet data refresh
 
-Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, nurmedia).
+${crs4 ? `Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, nurmedia).` : `**CRS4 was unavailable (${new Date().toISOString()}): sites and photos are the current ones**, only the other sources were updated.`}
 
 | | |
 |---|---|
@@ -333,6 +406,7 @@ Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, nurmedia).
 | Moved more than 50 m | ${report.moved.length} |
 | Source changed | ${report.sourceChanged} |
 | Sites with a description | ${report.newDescriptions} |
+| Context from geo.nurnet.net | ${report.context.matched} matched, ${report.context.kept} kept from before, ${report.context.none} without |
 | Status values fixed | ${report.statusFixes} |
 | Video field fixes | ${report.videoFixes.length} |
 | Sites with photos | ${report.photos.sitesBefore} -> ${report.photos.sitesAfter} (+${report.photos.added} photos) |
