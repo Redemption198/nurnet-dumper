@@ -3,7 +3,8 @@
 Fetches the NurNet sites and their photos from the [CRS4 NurNet GeoServer](https://nurnet.crs4.it/nurnetgeo/)
 and merges them into the [NurNet+](https://github.com/Redemption198/nurnet-plus) data file.
 
-It makes two requests in total (WFS layers `nurnet:nurdata` and `nurnet:nurmedia`, about 1.5 MB).
+It makes four requests in total: three WFS layers on CRS4 (`nurnet:nurdata`, `nurnet:nurmedia` and
+`nurnet:visibility`, about 11 MB) and one GeoJSON file on geo.nurnet.net.
 Version 1 scraped one portal page per site with Puppeteer, which took hours.
 
 ## Usage
@@ -16,11 +17,15 @@ vpx src/index.ts --base ../nurnet-plus/public --out out
 ```
 
 Nothing is overwritten: the merged data and a report of every change are written to `out/`.
-Review `out/report.md`, then copy the two data files into NurNet+:
+Review `out/report.md`, then copy the data files into NurNet+:
 
 ```bash
-cp out/nurnet-index.json out/nurnet-details.json ../nurnet-plus/public/
+cp out/nurnet-index.json out/nurnet-details.json out/nurnet-visibility.json ../nurnet-plus/public/
 ```
+
+`nurnet.crs4.it` doesn't answer from every network (connections time out). If it looks down, try
+from another connection, e.g. a VPN exit node in Italy. When CRS4 can't be reached, the dumper keeps
+the current sites, photos and line-of-sight data and says so in the report.
 
 ## Output
 
@@ -30,6 +35,11 @@ The app's data is split so it starts fast:
   map need (`content_id, category_id, name, comune, localita, regione, lon, lat`). Loaded at startup.
 - `nurnet-details.json` (~950 KB gzipped): photos, description, source, video, status, verified and
   date by `content_id`. Loaded in the background. Photo URLs are stored relative to `photoBase`.
+
+- `nurnet-visibility.json` (~300 KB gzipped): line of sight between nuraghi, computed by CRS4 on the
+  terrain model. One `[a, b, direct, inverse]` row per pair of `content_id`s, the values in
+  decimetres: how much of each 15 m tower (the height the model assumes) can be seen from the other.
+  Loaded the first time a nuraghe is opened.
 
 `--base` reads either this pair or the older single `nurnet-data.json`.
 

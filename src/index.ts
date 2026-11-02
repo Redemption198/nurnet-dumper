@@ -77,11 +77,13 @@ const { values: args } = parseArgs({
   },
 });
 
-// The CRS4 server drops out from time to time: retry a few times before giving up
-async function fetchLayer<T>(layer: string, attempts = 3) {
+// The CRS4 server drops out from time to time: retry a few times before giving up.
+// `properties` limits the columns (leaving out the geometry when it isn't listed)
+async function fetchLayer<T>(layer: string, properties?: string[], attempts = 3) {
+  const columns = properties ? `&propertyName=${properties.join(",")}` : "";
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(`${WFS}&typeNames=nurnet:${layer}`, {
+      const response = await fetch(`${WFS}&typeNames=nurnet:${layer}${columns}`, {
         signal: AbortSignal.timeout(90_000),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -172,6 +174,19 @@ const [crs4, contextFor] = await Promise.all([
     return null;
   }),
 ]);
+
+// Line of sight between nuraghi, computed by CRS4 on the terrain model. One row per pair, no
+// geometry (the app has the coordinates). `direct` and `inverse` (0-15, metres: 15 m is the tower
+// height the model assumes) are how much of each tower can be seen from the other
+const visibility = await fetchLayer<{
+  source: string;
+  target: string;
+  direct: string;
+  inverse: string;
+}>("visibility", ["source", "target", "direct", "inverse"]).catch((error: unknown) => {
+  console.warn(`CRS4 visibility unavailable, keeping the existing file: ${String(error)}`);
+  return null;
+});
 
 // With CRS4 down, the current data stands in for it, so the other sources can still update
 const sites =
@@ -388,6 +403,37 @@ await writeFile(
   JSON.stringify({ generated, photoBase: PHOTO_BASE, sites: sitesDetails }),
 );
 
+// Visibility: [a, b, direct, inverse] with the values in decimetres, only between sites we have.
+// Without a fresh download, the existing file is copied as it is
+const siteIds = new Set(features.map(({ properties }) => properties.content_id));
+const visibilityReport = { pairs: 0, sites: 0, dropped: 0, fresh: Boolean(visibility) };
+let visibilityFile: string | null = null;
+if (visibility) {
+  const pairs = [];
+  for (const { properties: p } of visibility) {
+    if (!siteIds.has(p.source) || !siteIds.has(p.target)) {
+      visibilityReport.dropped++;
+      continue;
+    }
+    pairs.push([
+      p.source,
+      p.target,
+      Math.round(Number(p.direct) * 10),
+      Math.round(Number(p.inverse) * 10),
+    ]);
+  }
+  visibilityReport.pairs = pairs.length;
+  visibilityReport.sites = new Set(pairs.flatMap(([a, b]) => [a, b])).size;
+  visibilityFile = JSON.stringify({
+    generated,
+    fields: ["a", "b", "direct_dm", "inverse_dm"],
+    pairs,
+  });
+} else {
+  visibilityFile = await readFile(`${args.base}/nurnet-visibility.json`, "utf8").catch(() => null);
+}
+if (visibilityFile) await writeFile(`${args.out}/nurnet-visibility.json`, visibilityFile);
+
 const section = (title: string, lines: string[]) =>
   `## ${title} (${lines.length})\n\n${lines.length ? lines.map((l) => `- ${l}`).join("\n") : "_none_"}\n`;
 
@@ -410,6 +456,7 @@ ${crs4 ? `Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, 
 | Status values fixed | ${report.statusFixes} |
 | Video field fixes | ${report.videoFixes.length} |
 | Sites with photos | ${report.photos.sitesBefore} -> ${report.photos.sitesAfter} (+${report.photos.added} photos) |
+| Line of sight | ${visibilityReport.fresh ? `${visibilityReport.pairs} pairs between ${visibilityReport.sites} sites, ${visibilityReport.dropped} dropped (site not in the data)` : visibilityFile ? "CRS4 unavailable: existing file kept" : "CRS4 unavailable: no file"} |
 
 ${section("Video field fixes", report.videoFixes)}
 ${section(`Only in our file (${args["keep-local"] ? "kept" : "removed, as upstream"})`, report.onlyOurs)}
@@ -420,5 +467,5 @@ ${section("Renamed", report.renamed)}`;
 
 await writeFile(`${args.out}/report.md`, markdown);
 console.log(
-  `Wrote ${features.length} sites to ${args.out}/nurnet-index.json + nurnet-details.json and the report to ${args.out}/report.md`,
+  `Wrote ${features.length} sites to ${args.out}/nurnet-index.json + nurnet-details.json${visibilityFile ? " + nurnet-visibility.json" : ""} and the report to ${args.out}/report.md`,
 );
