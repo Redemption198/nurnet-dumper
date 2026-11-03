@@ -14,6 +14,8 @@ import {
   normalizeParagraphs,
   normalizeStatus,
   normalizeText,
+  recoverLeakedRecord,
+  textProblems,
   type VideoResult,
 } from "./normalize.ts";
 import { loadPortalContext, type SiteContext } from "./portal.ts";
@@ -230,7 +232,46 @@ const report = {
   videoFixes: [] as string[],
   statusFixes: 0,
   photos: { sitesBefore: 0, sitesAfter: 0, added: 0 },
+  textFixes: [] as string[],
+  sentenceSpacing: 0,
+  joinedParagraphs: 0,
+  textProblems: [] as string[],
 };
+
+// The text fields a visitor reads, checked and listed in the report when cleaned up
+const TEXT_FIELDS = ["name", "comune", "localita", "regione", "source", "description"] as const;
+
+// Notes for the report on what the cleanup in normalize.ts changed in a site's upstream text
+function noteTextFixes(id: string, raw: Record<(typeof TEXT_FIELDS)[number], string | null>) {
+  for (const field of TEXT_FIELDS) {
+    const value = raw[field] ?? "";
+    if (field === "description" && recoverLeakedRecord(value) !== value) {
+      report.textFixes.push(`${id} description: a raw portal record, only its note kept`);
+    }
+    if (/&(?:#x[\da-f]+|#\d+|[a-z]+);/i.test(value)) {
+      report.textFixes.push(`${id} ${field}: HTML entities decoded`);
+    }
+    if (/\p{L}[<>]\p{L}/u.test(recoverLeakedRecord(value))) {
+      report.textFixes.push(
+        `${id} ${field}: stray < or > removed from "${normalizeText(value).slice(0, 60)}"`,
+      );
+    }
+  }
+  for (const field of TEXT_FIELDS) {
+    if (/Ã[\u0080-\u00bf]|Â[\u00a0-\u00bf]|â€/.test(raw[field] ?? "")) {
+      report.textFixes.push(`${id} ${field}: broken encoding fixed`);
+    }
+  }
+  const description = raw.description ?? "";
+  if (/\p{Ll}{3}\.\p{Lu}\p{Ll}/u.test(description)) report.sentenceSpacing++;
+  if (
+    /[^.!?:;"'»)\]…\s]\s*(?:\n\s*\n|\s;(?:\s*;)*\s)\s*\p{Ll}/u.test(
+      recoverLeakedRecord(description),
+    )
+  ) {
+    report.joinedParagraphs++;
+  }
+}
 
 const label = (p: { content_id?: string; name?: string; comune?: string }) =>
   `${p.content_id} ${p.name}${p.comune ? ` (${p.comune})` : ""}`;
@@ -285,6 +326,15 @@ for (const site of sites) {
   if (previous.photos?.length) report.photos.sitesBefore++;
   if (photos.length) report.photos.sitesAfter++;
   report.photos.added += photos.length - (previous.photos?.length ?? 0);
+
+  noteTextFixes(id, {
+    name: up.nome,
+    comune: up.comune,
+    localita: up.localita,
+    regione: up.regione,
+    source: up.fonte,
+    description: up.descr_it,
+  });
 
   const properties: Feature["properties"] = {
     content_id: id,
@@ -364,6 +414,18 @@ for (const [id, feature] of ours) {
       photos: p.photos ?? [],
     },
   });
+}
+
+// Whatever still looks broken after the cleanup, to fix by hand or with a new rule
+for (const { properties } of features) {
+  for (const field of TEXT_FIELDS) {
+    for (const { problem, excerpt } of textProblems(properties[field])) {
+      report.textProblems.push(`${properties.content_id} ${field}: ${problem}: \`${excerpt}\``);
+    }
+  }
+}
+if (report.textProblems.length) {
+  console.warn(`${report.textProblems.length} text problems left: see the report`);
 }
 
 await mkdir(args.out!, { recursive: true });
@@ -455,9 +517,13 @@ ${crs4 ? `Fetched ${new Date().toISOString()} from the CRS4 GeoServer (nurdata, 
 | Context from geo.nurnet.net | ${report.context.matched} matched, ${report.context.kept} kept from before, ${report.context.none} without |
 | Status values fixed | ${report.statusFixes} |
 | Video field fixes | ${report.videoFixes.length} |
+| Text fixes | ${report.textFixes.length}, plus a space added after full stops in ${report.sentenceSpacing} descriptions, and paragraphs broken mid-sentence joined in ${report.joinedParagraphs} |
+| **Text problems left** | ${report.textProblems.length} |
 | Sites with photos | ${report.photos.sitesBefore} -> ${report.photos.sitesAfter} (+${report.photos.added} photos) |
 | Line of sight | ${visibilityReport.fresh ? `${visibilityReport.pairs} pairs between ${visibilityReport.sites} sites, ${visibilityReport.dropped} dropped (site not in the data)` : visibilityFile ? "CRS4 unavailable: existing file kept" : "CRS4 unavailable: no file"} |
 
+${section("Text problems left (fix by hand or add a rule to normalize.ts)", report.textProblems)}
+${section("Text fixes", report.textFixes)}
 ${section("Video field fixes", report.videoFixes)}
 ${section(`Only in our file (${args["keep-local"] ? "kept" : "removed, as upstream"})`, report.onlyOurs)}
 ${section("New upstream", report.added)}
