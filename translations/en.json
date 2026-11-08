@@ -1136,6 +1136,13 @@
   "ok": true,
   "date": "2026-11-08"
  },
+ "0c5473f623b5993b": {
+  "text": "Reduced to a level of ruin, only some circles of roughly shaped and disordered stones remain scattered in the courses. The remains poorly show the original construction features, despite some courses still being arranged in order.\n\nNuraghe of the site of Ginestroni, in Logudorese Tiria. See Tiriàles.",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "ok": true,
+  "date": "2026-11-08"
+ },
  "0c89ff0658ee3702": {
   "text": "Complex nuraghe still entirely to be discovered and described",
   "engine": "local",
@@ -3136,6 +3143,13 @@
  },
  "21faef7fc820521c": {
   "text": "Disappeared from maps and censuses, it has reappeared thanks to the geological mining map drawn by engineer C. De Castro in 1889 and the drone survey carried out by the Assoc. Cult. Limen Sarrabus-Gerrei.",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "ok": true,
+  "date": "2026-11-08"
+ },
+ "21fc87970b214b2c": {
+  "text": "The nuraghe, collapsed internally, shows a fairly irregular plan, typical more of proto-nuraghe than of true tholos nuraghe.",
   "engine": "local",
   "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
   "ok": true,
@@ -5726,6 +5740,13 @@
  },
  "3d480d2c1a0602fb": {
   "text": "Single-tower nuraghe no longer visible but noted by archaeologist Daniele Carta in his thesis (ArcheoArte 2012)",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "ok": true,
+  "date": "2026-11-08"
+ },
+ "3d6e94ee56b6681a": {
+  "text": "Multicellular tomb with centripetal development. Long since emptied. It has yielded materials from the Ozieri culture (3200–2500 BC) and from the late medieval period (7th century AD). The former are preserved at the Archaeological Museum \"G. A. Sanna\" in Sassari; the latter at the Civic Museum in Nuoro.\n\nInside the domus, excavated on a rocky outcrop, access is gained through a hexagonal hatch; surrounding the antechamber, with a perfectly worked ceiling, open five cells where the dead were deposited.",
   "engine": "local",
   "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
   "ok": true,
@@ -8526,6 +8547,13 @@
  },
  "5bba0711db64d556": {
   "text": "The Carrarzu Iddia complex nuraghe is situated on a modest elevation bounded by a curtain wall enclosing a proto-nuraghe and a nuraghe that appears to be of tholos type: between the two structures lies a small cluster of circular huts, some of which are still well preserved. A few dozen metres away lies the homonymous dolmen, and slightly further on the Pranu 'e Ruos and Tittiriolos nuraghes.",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "ok": true,
+  "date": "2026-11-08"
+ },
+ "5bc6f480edf0c9be": {
+  "text": "It is a single-tower with a circular plan (SE-NO axis 11.75 m; east-west axis 11.50 m), with a thickness of 2.70 m to the north and 3.85 m to the west; the maximum remaining height is at the north, with 3.60 m on 8 courses of basaltic stones, well-cut, of medium and large dimensions arranged in regular horizontal courses.",
   "engine": "local",
   "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
   "ok": true,
@@ -13823,6 +13851,13 @@
   "text": "Nuraghe on the SSW slope of Monte Arbus, on the hillside facing the S'Acqua sa Canna area. Complex nuraghe with a three-lobed bastion and an internal courtyard. The towers of which traces remain are positioned to the N, SSE and SSW. Because of the collapses and the vegetation it is difficult to make out the outline of the walls clearly. By contrast the outline of the courtyard is well defined; at first glance it appears pentagonal; in some stretches up to three rows of boulders of various shapes and sizes survive.",
   "engine": "hosted",
   "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "ok": true,
+  "date": "2026-11-08"
+ },
+ "96cb2a9d66a0f562": {
+  "text": "The most well-known nuraghe is undoubtedly the one discovered in the area of Santa Maria during excavations carried out beneath the sacristy of the rural chapel; the foundations were uncovered in 1843, and some nuraghi stones are incorporated into the fence wall of the church courtyard.",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
   "ok": true,
   "date": "2026-11-08"
  },
@@ -22366,6 +22401,13 @@
   "text": "Only small portions of the wall of the nuraghe remain. The collapse makes it impossible to read the plan.",
   "engine": "hosted",
   "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "ok": true,
+  "date": "2026-11-08"
+ },
+ "f7a59fefd43d79f0": {
+  "text": "Only a few of the basal stones remain. They are hard white tuff, still friable. They are located directly above the curved alignment of the mountain ridge, where several domus de janas are visible, extending along the crest of the mountain and the slope below.\n\nNuraghe of the mountain with a hole. See Mònte pertùsu.",
+  "engine": "local",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
   "ok": true,
   "date": "2026-11-08"
  },

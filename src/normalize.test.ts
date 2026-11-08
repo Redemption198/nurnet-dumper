@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { normalizeParagraphs, normalizeText, textProblems } from "./normalize.ts";
+import { extractLinks, normalizeParagraphs, normalizeText, textProblems } from "./normalize.ts";
 
 // NUR4134 upstream, shortened
 const LEAKED =
@@ -55,6 +55,57 @@ describe("encoding and paragraphs", () => {
     expect(
       normalizeParagraphs('d\'età altomedievale\n\n(VII sec. d. C.). Al Museo\n\n"G. A. Sanna".'),
     ).toBe('d\'età altomedievale (VII sec. d. C.). Al Museo "G. A. Sanna".');
+  });
+});
+
+describe("extractLinks", () => {
+  it("takes the addresses out of the text, sentence punctuation kept", () => {
+    expect(
+      extractLinks(
+        "alcuni massi sono inglobati nel muretto della chiesa www.aserramanna.it/storia/ www.serramanna.altervista.org/storia.htm",
+      ),
+    ).toEqual({
+      text: "alcuni massi sono inglobati nel muretto della chiesa",
+      links: [
+        { url: "http://www.aserramanna.it/storia/" },
+        { url: "http://www.serramanna.altervista.org/storia.htm" },
+      ],
+    });
+    expect(
+      extractLinks("Filari ordinati.\n\nInfo: www.archeologosardos.it\n\nVedi Tiriàles."),
+    ).toEqual({
+      text: "Filari ordinati.\n\nVedi Tiriàles.",
+      links: [{ url: "http://www.archeologosardos.it" }],
+    });
+  });
+
+  it("turns the cut-off Merella address into the thesis, with its pages", () => {
+    const { text, links } = extractLinks(
+      "Pianta irregolare.\n\nPer approfondire:\n\neprints.uniss.it/9371/1/Merella_S_Indagini_territoriali... pagg. 339-340",
+    );
+    expect(text).toBe("Pianta irregolare.");
+    expect(links).toEqual([
+      {
+        url: expect.stringContaining("iris.uniss.it"),
+        label: "Merella, Indagini territoriali, pp. 339–340",
+      },
+    ]);
+    expect(
+      extractLinks("eprints.uniss.it/9371/1/Merella_S_Indagini_territoriali...\n\nPagine: 273-274")
+        .text,
+    ).toBe("");
+  });
+
+  it("keeps an address's own scheme", () => {
+    expect(extractLinks("http://www.tharros.info/NuraghiMap.php?lng=it#tabs-3")).toEqual({
+      text: "",
+      links: [{ url: "http://www.tharros.info/NuraghiMap.php?lng=it#tabs-3" }],
+    });
+  });
+
+  it("leaves a bare site name, and text without addresses, as they are", () => {
+    const text = "Da Tharros.info. Posizione non esattamente definita";
+    expect(extractLinks(text)).toEqual({ text, links: [] });
   });
 });
 

@@ -11,6 +11,8 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import {
   classifyVideo,
+  extractLinks,
+  type Link,
   normalizeParagraphs,
   normalizeStatus,
   normalizeText,
@@ -44,6 +46,8 @@ interface Properties {
   regione: string;
   source: string;
   description: string;
+  // The web addresses that were in the description
+  links: Link[];
   youtube: string;
   stato: string;
   verified: boolean | null;
@@ -336,6 +340,9 @@ for (const site of sites) {
     description: up.descr_it,
   });
 
+  // The description's web addresses become links. With CRS4 down the description is our own, its
+  // addresses already out: the links it had stay
+  const described = extractLinks(normalizeParagraphs(up.descr_it));
   const properties: Feature["properties"] = {
     content_id: id,
     category_id: up.category ?? null,
@@ -344,7 +351,8 @@ for (const site of sites) {
     localita: normalizeText(up.localita),
     regione: normalizeText(up.regione),
     source: resolved.source,
-    description: normalizeParagraphs(up.descr_it),
+    description: described.text,
+    links: described.links.length || crs4 ? described.links : (previous.links ?? []),
     youtube,
     // Not published upstream any more: keep what we have
     stato: status,
@@ -407,6 +415,7 @@ for (const [id, feature] of ours) {
       regione: normalizeText(p.regione),
       source: normalizeText(p.source),
       description: "",
+      links: [],
       youtube: video.kind === "youtube" || video.kind === "facebook" ? video.value : "",
       stato: normalizeStatus(p.stato),
       verified: p.verified ?? null,
@@ -449,7 +458,10 @@ const sitesDetails = Object.fromEntries(
     const detail: Record<string, unknown> = Object.fromEntries(
       Object.entries(rest).filter(
         ([key, value]) =>
-          !(INDEX_FIELDS as readonly string[]).includes(key) && value !== "" && value !== null,
+          !(INDEX_FIELDS as readonly string[]).includes(key) &&
+          value !== "" &&
+          value !== null &&
+          !(Array.isArray(value) && !value.length),
       ),
     );
     if (photos.length) {

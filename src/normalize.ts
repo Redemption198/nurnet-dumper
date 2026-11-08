@@ -117,6 +117,65 @@ export function normalizeParagraphs(value: Text): string {
     .join("\n\n");
 }
 
+export interface Link {
+  url: string;
+  // What the app shows; without one, the address's host ("aserramanna.it")
+  label?: string;
+}
+
+// The Merella thesis (Università di Sassari) is cited by an address cut off upstream, on a server
+// that's gone since: the thesis is now on the university's IRIS repository
+const MERELLA =
+  /(?:Per approfondire:\s*)?eprints\.uniss\.it\/9371\/1\/Merella_S_Indagini_territoriali\.{3}(?:\s*(?:pagg?\.|Pagine:)\s*(\d+(?:\s*[-–]\s*\d+)?))?/gi;
+const MERELLA_URL =
+  "https://iris.uniss.it/retrieve/e1dc1a2c-df72-1507-e053-3a05fe0ac7a3/Merella_S_Indagini_territoriali_sugli_aspetti.pdf";
+// A web address written out in full, with its scheme or "www.", and the label before it ("Info:").
+// A bare name ("Da Tharros.info.") is part of the sentence and stays
+const LABEL = /(?:Info|Link|Sito|Vedi|Fonte):\s*/i;
+const ADDRESS = new RegExp(
+  `(?:\\b${LABEL.source})?\\b(?:https?:\\/\\/|www\\.)[^\\s<>"“”«»]+`,
+  "gi",
+);
+
+/**
+ * Takes the web addresses out of a description, as links the app shows under it: in the text
+ * they're unreadable on a phone, and a machine translation could garble them. A description
+ * without one comes back as it is
+ */
+export function extractLinks(description: string): { text: string; links: Link[] } {
+  const links: Link[] = [];
+  const add = (link: Link) => {
+    if (!links.some(({ url }) => url === link.url)) links.push(link);
+  };
+  let text = description.replace(MERELLA, (_match, pages?: string) => {
+    const range = pages?.replace(/\s*[-–]\s*/, "–");
+    const where = range ? `, ${range.includes("–") ? "pp." : "p."} ${range}` : "";
+    add({ url: MERELLA_URL, label: `Merella, Indagini territoriali${where}` });
+    return "";
+  });
+  text = text.replace(ADDRESS, (match) => {
+    // Only a label ("Info:") goes: "http:" is part of the address
+    const address = match.replace(new RegExp(`^${LABEL.source}`, "i"), "");
+    // Sentence punctuation after the address stays in the text
+    const url = address.replace(/[.,;:)]+$/, "");
+    add({ url: /^https?:\/\//i.test(url) ? url : `http://${url}` });
+    return address.slice(url.length);
+  });
+  if (!links.length) return { text: description, links };
+  text = text
+    .split(/\n{2,}/)
+    .map((paragraph) =>
+      paragraph
+        .replace(/[ \t]{2,}/g, " ")
+        .replace(/\s+([.,;:])/g, "$1")
+        .trim(),
+    )
+    // A label left on its own ("Per approfondire:", "Pagine:")
+    .filter((paragraph) => paragraph && !/^[\p{L} ]{1,20}:$/u.test(paragraph))
+    .join("\n\n");
+  return { text, links };
+}
+
 const STATUS_NAMES: Record<string, string> = {
   manutenuto: "Mantenuto",
   mantenuto: "Mantenuto",
