@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { extractLinks, normalizeParagraphs, normalizeText, textProblems } from "./normalize.ts";
+import {
+  extractLinks,
+  normalizeParagraphs,
+  normalizeText,
+  sourceAddress,
+  textProblems,
+} from "./normalize.ts";
 
 // NUR4134 upstream, shortened
 const LEAKED =
@@ -106,6 +112,27 @@ describe("extractLinks", () => {
   it("leaves a bare site name, and text without addresses, as they are", () => {
     const text = "Da Tharros.info. Posizione non esattamente definita";
     expect(extractLinks(text)).toEqual({ text, links: [] });
+  });
+});
+
+describe("sourceAddress", () => {
+  it("gives a bare address its scheme", () => {
+    expect(sourceAddress("sardegnacultura.it")).toBe("http://sardegnacultura.it");
+    expect(sourceAddress("www.ilportalesardo.it/archeo/nudorgali7.htm")).toBe(
+      "http://www.ilportalesardo.it/archeo/nudorgali7.htm",
+    );
+  });
+
+  it("leaves names, full addresses and addresses that are gone as they are", () => {
+    for (const source of [
+      "mario unali",
+      "G.Lilliu",
+      "Moravetti 1998",
+      "https://www.nurnet.net/x",
+      "Villanovaforru.gov.it",
+      "comune.ittiri.ss.it/web/pg/eta-nuragica/5",
+    ])
+      expect(sourceAddress(source)).toBe(source);
   });
 });
 

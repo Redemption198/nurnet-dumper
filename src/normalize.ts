@@ -176,6 +176,36 @@ export function extractLinks(description: string): { text: string; links: Link[]
   return { text, links };
 }
 
+// A source written as a bare address, "sardegnacultura.it" or "www.ilportalesardo.it/archeo/…":
+// no spaces, and a domain ending we know, so a name like "G.Lilliu" isn't one
+const BARE_ADDRESS =
+  /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:it|com|org|net|info|eu|edu|gov|de|fr|uk|es)(?:\/\S*)?$/i;
+// Checked on 2026-11-08: the domain no longer exists, or the page was removed. These stay text
+const GONE_HOSTS = new Set([
+  "villanovaforru.gov.it",
+  "villaubana.net",
+  "suscruxoxu.it",
+  "oristanosardegna.eu",
+  "sardegna.beniculturali.it",
+  "portalesardo.it",
+  "supramontes.blogspot.com",
+]);
+const GONE_PAGES = new Set([
+  "web.tiscali.it/mariobasciudonori/siti_archeologici.htm",
+  "comune.ittiri.ss.it/web/pg/eta-nuragica/5",
+]);
+
+/**
+ * A source written as a bare address, as a full one: the app shows it as a link like the sources
+ * that came with their "http://". Names, full addresses and addresses that are gone stay as they are
+ */
+export function sourceAddress(source: string): string {
+  if (/^https?:\/\//i.test(source) || !BARE_ADDRESS.test(source)) return source;
+  const address = source.toLowerCase().replace(/^www\./, "");
+  if (GONE_HOSTS.has(address.split("/")[0]!) || GONE_PAGES.has(address)) return source;
+  return `http://${source}`;
+}
+
 const STATUS_NAMES: Record<string, string> = {
   manutenuto: "Mantenuto",
   mantenuto: "Mantenuto",

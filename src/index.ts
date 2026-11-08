@@ -17,6 +17,7 @@ import {
   normalizeStatus,
   normalizeText,
   recoverLeakedRecord,
+  sourceAddress,
   textProblems,
   type VideoResult,
 } from "./normalize.ts";
@@ -350,7 +351,7 @@ for (const site of sites) {
     comune: normalizeText(up.comune),
     localita: normalizeText(up.localita),
     regione: normalizeText(up.regione),
-    source: resolved.source,
+    source: sourceAddress(resolved.source),
     description: described.text,
     links: described.links.length || crs4 ? described.links : (previous.links ?? []),
     youtube,
