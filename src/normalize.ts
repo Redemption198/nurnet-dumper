@@ -180,7 +180,10 @@ export function extractLinks(description: string): { text: string; links: Link[]
 // no spaces, and a domain ending we know, so a name like "G.Lilliu" isn't one
 const BARE_ADDRESS =
   /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:it|com|org|net|info|eu|edu|gov|de|fr|uk|es)(?:\/\S*)?$/i;
-// Checked on 2026-11-08: the domain no longer exists, or the page was removed. These stay text
+// Checked on 2026-11-08 (every source address, bare or full): the domain no longer exists, or the
+// page was removed (404, 410). Written without scheme, "www." or a final "/", in lowercase.
+// Servers that didn't answer from abroad (town and region sites) aren't here: they may well
+// answer in Italy
 const GONE_HOSTS = new Set([
   "villanovaforru.gov.it",
   "villaubana.net",
@@ -189,21 +192,49 @@ const GONE_HOSTS = new Set([
   "sardegna.beniculturali.it",
   "portalesardo.it",
   "supramontes.blogspot.com",
+  "prolocofonni.it",
+  "visitittiri.com",
+  "parcoarcheologicosuni.it",
+  "progettoiloi.it",
+  "castiadasonline.it",
+  "coolturistika.it",
+  "comune.tratalias.ca.it",
+  "scuolasettimo.gov.it",
 ]);
 const GONE_PAGES = new Set([
   "web.tiscali.it/mariobasciudonori/siti_archeologici.htm",
   "comune.ittiri.ss.it/web/pg/eta-nuragica/5",
+  "comune.ploaghe.ss.it/pg/nuraghe-don-micheli/66",
+  "comune.ploaghe.ss.it/pg/tomba-di-giganti-di-fiorosu/64",
+  "comune.settimosanpietro.ca.it/media/files/contenuti/area%20tecnica/08_relazione_archeologica.pdf",
+  "giarasardegna.it/it/content/nuraghe-san-marco",
+  "comuneaidomaggiore.it/archeologiaa",
+  "prolocoarbus.it/proloco-arbus/nuraghe-di-cugui",
+  // Cut off upstream, too
+  "ojs.unica.it/index.../archeoarte/article/view/510/421",
 ]);
+const GONE_PAGE_HOSTS = new Set([...GONE_PAGES].map((page) => page.split("/")[0]!));
 
 /**
- * A source written as a bare address, as a full one: the app shows it as a link like the sources
- * that came with their "http://". Names, full addresses and addresses that are gone stay as they are
+ * A source that is a web address, as the app should show it: a full address to link to (a bare
+ * one gets its "http://"), or, where it's gone, just the site's name as text ("Source:
+ * comune.ploaghe.ss.it"), which still says where the information came from. A name stays as it is
  */
-export function sourceAddress(source: string): string {
-  if (/^https?:\/\//i.test(source) || !BARE_ADDRESS.test(source)) return source;
-  const address = source.toLowerCase().replace(/^www\./, "");
-  if (GONE_HOSTS.has(address.split("/")[0]!) || GONE_PAGES.has(address)) return source;
-  return `http://${source}`;
+export function sourceAddress(source: string, { ours = false } = {}): string {
+  const full = /^https?:\/\//i.test(source);
+  if (!full && !BARE_ADDRESS.test(source)) return source;
+  const address = source
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/$/, "")
+    .toLowerCase();
+  const host = address.split("/")[0]!;
+  // With CRS4 down the dumper starts from its own output (`ours`), where the bare name of a site
+  // whose page is gone is what this returned before: it stays a name. From upstream the same
+  // name ("giarasardegna.it") is a working site, linked
+  const goneName = ours && !full && address === host && GONE_PAGE_HOSTS.has(host);
+  if (GONE_HOSTS.has(host) || GONE_PAGES.has(address) || goneName) return host;
+  return full ? source : `http://${source}`;
 }
 
 const STATUS_NAMES: Record<string, string> = {

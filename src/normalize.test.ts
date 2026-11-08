@@ -123,16 +123,42 @@ describe("sourceAddress", () => {
     );
   });
 
-  it("leaves names, full addresses and addresses that are gone as they are", () => {
-    for (const source of [
-      "mario unali",
-      "G.Lilliu",
-      "Moravetti 1998",
-      "https://www.nurnet.net/x",
-      "Villanovaforru.gov.it",
-      "comune.ittiri.ss.it/web/pg/eta-nuragica/5",
-    ])
+  it("leaves names and working full addresses as they are", () => {
+    for (const source of ["mario unali", "G.Lilliu", "Moravetti 1998", "https://www.nurnet.net/x"])
       expect(sourceAddress(source)).toBe(source);
+  });
+
+  it("names the site of an address that is gone, bare or full, without linking it", () => {
+    expect(sourceAddress("Villanovaforru.gov.it")).toBe("villanovaforru.gov.it");
+    expect(sourceAddress("comune.ittiri.ss.it/web/pg/eta-nuragica/5")).toBe("comune.ittiri.ss.it");
+    expect(sourceAddress("https://www.comune.ploaghe.ss.it/pg/nuraghe-don-micheli/66")).toBe(
+      "comune.ploaghe.ss.it",
+    );
+    expect(sourceAddress("http://www.suscruxoxu.it/")).toBe("suscruxoxu.it");
+    expect(sourceAddress("https://www.comune.ploaghe.ss.it/pg/altra-pagina/1")).toBe(
+      "https://www.comune.ploaghe.ss.it/pg/altra-pagina/1",
+    );
+  });
+
+  it("gives the same answer when run on its own output (CRS4 down)", () => {
+    for (const source of [
+      "https://www.comune.ploaghe.ss.it/pg/nuraghe-don-micheli/66",
+      "Villanovaforru.gov.it",
+      "sardegnacultura.it",
+      "mario unali",
+    ]) {
+      const once = sourceAddress(source);
+      expect(sourceAddress(once, { ours: true }), source).toBe(once);
+    }
+    // From upstream, the same bare name is a site that works; and a full address to such a site
+    // (only one of its pages is gone) stays a link, ours or not
+    expect(sourceAddress("giarasardegna.it")).toBe("http://giarasardegna.it");
+    expect(sourceAddress("http://giarasardegna.it", { ours: true })).toBe(
+      "http://giarasardegna.it",
+    );
+    expect(sourceAddress("https://www.comune.ittiri.ss.it/", { ours: true })).toBe(
+      "https://www.comune.ittiri.ss.it/",
+    );
   });
 });
 

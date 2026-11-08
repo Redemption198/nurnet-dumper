@@ -351,7 +351,8 @@ for (const site of sites) {
     comune: normalizeText(up.comune),
     localita: normalizeText(up.localita),
     regione: normalizeText(up.regione),
-    source: sourceAddress(resolved.source),
+    // With CRS4 down the source is our own, already through sourceAddress once
+    source: sourceAddress(resolved.source, { ours: !crs4 }),
     description: described.text,
     links: described.links.length || crs4 ? described.links : (previous.links ?? []),
     youtube,
