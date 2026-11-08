@@ -51,6 +51,10 @@ describe("encoding and paragraphs", () => {
     expect(normalizeParagraphs("a 250 metri a NO del\n\nNuraghe Arghentu, in")).toBe(
       "a 250 metri a NO del Nuraghe Arghentu, in",
     );
+    // NUR12346: before a bracket or a quotation, as before a lowercase word
+    expect(
+      normalizeParagraphs('d\'età altomedievale\n\n(VII sec. d. C.). Al Museo\n\n"G. A. Sanna".'),
+    ).toBe('d\'età altomedievale (VII sec. d. C.). Al Museo "G. A. Sanna".');
   });
 });
 

@@ -70,10 +70,10 @@ export function fixEncoding(value: string): string {
   return value.replace(/Â([\u00a0-\u00bf])/g, "$1");
 }
 
-// A paragraph that ends mid-sentence, before one that starts in lowercase: a line wrapped
-// upstream, not a paragraph
+// A paragraph that ends mid-sentence, before one that goes on with it (a lowercase word, a
+// bracket, a quotation): a line wrapped upstream, not a paragraph
 const ENDS_SENTENCE = /[.!?:;"'»)\]…]$/;
-const STARTS_LOWERCASE = /^\p{Ll}/u;
+const CONTINUES = /^[\p{Ll}("“«]/u;
 // A paragraph that can't end there at all: on a comma, an open bracket, or a word that needs
 // the next one ("a SE del" / "Nuraghe Arghentu")
 const ENDS_OPEN =
@@ -106,8 +106,7 @@ export function normalizeParagraphs(value: Text): string {
     .reduce<string[]>((paragraphs, paragraph) => {
       const last = paragraphs.at(-1);
       const wrapped =
-        last &&
-        ((!ENDS_SENTENCE.test(last) && STARTS_LOWERCASE.test(paragraph)) || ENDS_OPEN.test(last));
+        last && ((!ENDS_SENTENCE.test(last) && CONTINUES.test(paragraph)) || ENDS_OPEN.test(last));
       if (wrapped) {
         paragraphs[paragraphs.length - 1] = `${last} ${paragraph}`;
       } else {
