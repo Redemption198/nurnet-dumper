@@ -43,6 +43,39 @@ The app's data is split so it starts fast:
 
 `--base` reads either this pair or the older single `nurnet-data.json`.
 
+## Translations
+
+The descriptions are machine translated, one file per language for the app: `nurnet-descriptions.<lang>.json`
+(`content_id` → text), which the app downloads the first time a visitor opens a site in that language. The
+translations are kept in `translations/<lang>.json` (committed), by a hash of the Italian, so a data refresh only
+translates what is new or changed. Each one is checked (paragraphs, length, text left in Italian, the census's terms
+kept...); one that fails is left out of the app's file, and that site shows its Italian description.
+
+1. **A local model, for everything** (a few hours, nothing leaves the machine), with
+   [mlx-lm](https://github.com/ml-explore/mlx-lm) 0.32 or later:
+
+   ```sh
+   vpx src/translate-run.ts            # Qwen3 4B; --lang en, --server path/to/mlx_lm.server
+   ```
+
+2. **A hosted model, redoing them all** the daily quota at a time: the ones that failed the checks first, then the
+   longest. With an [OpenRouter](https://openrouter.ai) key (its free models allow 1000 requests a day once the
+   account has bought credits):
+
+   ```sh
+   OPENROUTER_API_KEY=… vpx src/translate-run.ts --engine hosted   # Nemotron 3 Ultra; --limit 1000
+   ```
+
+   A free model's provider may log what it is sent: only the census's own public text is.
+
+Each run writes `out/nurnet-descriptions.<lang>.json`, to copy to the app's `public/` with the other files. A run
+can be stopped at any point (each translation is saved as it comes) and the next one goes on.
+
+To fix a translation by hand, edit its `text` in `translations/<lang>.json` and set `"engine": "human"`: no run
+replaces it. The prompt, the glossary of census terms and the checks are in `src/translate.ts`;
+`src/translate-sample.ts` compares models or prompts on the same 50 descriptions
+(`out/translate-sample/compare.html`).
+
 ## How the data is merged
 
 - Name, category, comune, località, region, source and description come from upstream.
