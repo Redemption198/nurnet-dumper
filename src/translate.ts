@@ -217,11 +217,20 @@ async function chat({ endpoint, model, apiKey }: Server, messages: Message[], le
     }
     if (!response.ok)
       throw new Error(`${endpoint}: HTTP ${response.status} ${await response.text()}`);
-    const data = (await response.json()) as {
+    type Reply = {
       choices?: { message: { content: string | null }; finish_reason: string }[];
       usage?: { completion_tokens?: number };
       error?: { message?: string };
     };
+    // The connection can also drop while the answer is coming ("terminated"): the same wait
+    const data = (await response.json().catch((error: unknown) => {
+      if (attempt < 8) return null;
+      throw error;
+    })) as Reply | null;
+    if (!data) {
+      await sleep(Math.min(20 * attempt, 120));
+      continue;
+    }
     // OpenRouter reports some failures (a provider down) inside a 200 reply
     const choice = data.choices?.[0];
     if (!choice) throw new Error(`${endpoint}: ${data.error?.message ?? "no answer"}`);
