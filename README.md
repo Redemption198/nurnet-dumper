@@ -23,10 +23,6 @@ Review `out/report.md`, then copy the data files into NurNet+:
 cp out/nurnet-index.json out/nurnet-details.json out/nurnet-visibility.json ../nurnet-plus/public/
 ```
 
-`nurnet.crs4.it` doesn't answer from every network (connections time out). If it looks down, try
-from another connection, e.g. a VPN exit node in Italy. When CRS4 can't be reached, the dumper keeps
-the current sites, photos and line-of-sight data and says so in the report.
-
 ## Output
 
 The app's data is split so it starts fast:
