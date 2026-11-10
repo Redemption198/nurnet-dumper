@@ -3,14 +3,15 @@
 // with the other data files. The translations are kept in translations/<lang>.json
 // (translations.ts), saved after each one: a run can stop at any point and the next goes on.
 //
-// First the local model, for every description (a few hours, nothing leaves the machine):
+// A free model on OpenRouter, the daily quota at a time: the descriptions with no translation yet,
+// then the local model's ones, those that failed the checks first (the key in OPENROUTER_API_KEY;
+// OpenRouter's free models allow 1000 requests a day):
 //
-//   vpx src/translate-run.ts [--lang en]
+//   vpx src/translate-run.ts [--lang en] [--limit 1000]
 //
-// Then a hosted model redoes them all, the ones that failed the checks first, the daily quota at a
-// time (the key in OPENROUTER_API_KEY; OpenRouter's free models allow 1000 requests a day):
+// Or the local model, nothing leaving the machine (mlx_lm 0.32 or later):
 //
-//   vpx src/translate-run.ts --engine hosted [--limit 1000]
+//   vpx src/translate-run.ts --engine local [--lang en]
 //
 // A translation fixed by hand in translations/<lang>.json gets "engine": "human" and is kept.
 
@@ -36,7 +37,7 @@ import {
 const { values: args } = parseArgs({
   options: {
     lang: { type: "string", default: "en" },
-    engine: { type: "string", default: "local" },
+    engine: { type: "string", default: "hosted" },
     model: { type: "string" },
     // At most this many translations in this run (a hosted model: its daily quota)
     limit: { type: "string" },
@@ -62,7 +63,8 @@ const model =
     ? "mlx-community/Qwen3-4B-Instruct-2507-4bit"
     : "nvidia/nemotron-3-ultra-550b-a55b:free");
 const apiKey = process.env.OPENROUTER_API_KEY;
-if (engine === "hosted" && !apiKey) throw new Error("--engine hosted needs OPENROUTER_API_KEY");
+if (engine === "hosted" && !apiKey)
+  throw new Error("Set OPENROUTER_API_KEY, or use --engine local");
 
 const details = JSON.parse(await readFile(`${args.base}/nurnet-details.json`, "utf8")) as {
   sites: Record<string, { description?: string }>;

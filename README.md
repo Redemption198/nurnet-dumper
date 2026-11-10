@@ -47,22 +47,20 @@ translations are kept in `translations/<lang>.json` (committed), by a hash of th
 translates what is new or changed. Each one is checked (paragraphs, length, text left in Italian, the census's terms
 kept...); one that fails is left out of the app's file, and that site shows its Italian description.
 
-1. **A local model, for everything** (a few hours, nothing leaves the machine), with
-   [mlx-lm](https://github.com/ml-explore/mlx-lm) 0.32 or later:
+They are translated with a free model on [OpenRouter](https://openrouter.ai) (Nemotron 3 Ultra). It needs an
+OpenRouter key; its free models allow 1000 requests a day once the account has bought credits, so a run translates
+up to 1000 descriptions:
 
-   ```sh
-   vpx src/translate-run.ts            # Qwen3 4B; --lang en, --server path/to/mlx_lm.server
-   ```
+```sh
+OPENROUTER_API_KEY=… vpx src/translate-run.ts   # --lang en, --limit 1000, --model
+```
 
-2. **A hosted model, redoing them all** the daily quota at a time: the ones that failed the checks first, then the
-   longest. With an [OpenRouter](https://openrouter.ai) key (its free models allow 1000 requests a day once the
-   account has bought credits):
+A run translates the descriptions that have no translation yet, then redoes the ones made by the local model: those
+that failed the checks first, then the longest. A free model's provider may log what it is sent: only the census's own
+public text is.
 
-   ```sh
-   OPENROUTER_API_KEY=… vpx src/translate-run.ts --engine hosted   # Nemotron 3 Ultra; --limit 1000
-   ```
-
-   A free model's provider may log what it is sent: only the census's own public text is.
+The local model is still there for a run where nothing leaves the machine: `vpx src/translate-run.ts --engine local`
+(Qwen3 4B). It needs [mlx-lm](https://github.com/ml-explore/mlx-lm) 0.32 or later, on Apple silicon.
 
 Each run writes `out/nurnet-descriptions.<lang>.json`, to copy to the app's `public/` with the other files. A run
 can be stopped at any point (each translation is saved as it comes) and the next one goes on.
