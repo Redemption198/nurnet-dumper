@@ -22,6 +22,7 @@ import {
   type VideoResult,
 } from "./normalize.ts";
 import { loadPortalContext, type SiteContext } from "./portal.ts";
+import { decodeIndex, encodeIndex, type IndexSite } from "./index-file.ts";
 
 const WFS =
   "https://nurnet.crs4.it/geoserver/nurnet/ows?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json&srsName=EPSG:4326";
@@ -144,7 +145,16 @@ async function readBase(dir: string): Promise<BaseFeature[]> {
   if (await exists("nurnet-index.json")) {
     const index = await readJson("nurnet-index.json");
     const details = await readJson("nurnet-details.json");
-    return (index.rows as unknown[][]).map((row) => {
+    // index-file.ts's columns, or the earlier format: one row per site
+    const rows: unknown[][] =
+      index.format === 2
+        ? decodeIndex(index).map((site) => [
+            ...INDEX_FIELDS.map((field) => site[field]),
+            site.lon,
+            site.lat,
+          ])
+        : index.rows;
+    return rows.map((row) => {
       const properties = Object.fromEntries(INDEX_FIELDS.map((field, i) => [field, row[i]]));
       const extra = details.sites[properties.content_id as string] ?? {};
       return {
@@ -441,16 +451,20 @@ if (report.textProblems.length) {
 
 await mkdir(args.out!, { recursive: true });
 
-// Index: one compact row per site, no repeated keys (about a quarter of GeoJSON's size)
-const rows = features.map(({ geometry, properties }) => [
-  ...INDEX_FIELDS.map((field) => properties[field]),
-  Number(geometry.coordinates[0].toFixed(6)),
-  Number(geometry.coordinates[1].toFixed(6)),
-]);
+// Index: one array per field (index-file.ts), about a tenth of GeoJSON's size
 const generated = new Date().toISOString();
+const indexSites = features.map(
+  ({ geometry, properties }) =>
+    ({
+      ...Object.fromEntries(INDEX_FIELDS.map((field) => [field, properties[field]])),
+      // The census gives 5 decimals at most (about 1 m)
+      lon: Number(geometry.coordinates[0].toFixed(5)),
+      lat: Number(geometry.coordinates[1].toFixed(5)),
+    }) as IndexSite,
+);
 await writeFile(
   `${args.out}/nurnet-index.json`,
-  JSON.stringify({ generated, fields: [...INDEX_FIELDS, "lon", "lat"], rows }),
+  JSON.stringify(encodeIndex(indexSites, generated)),
 );
 
 // Details: everything else, by content_id, leaving out empty values
